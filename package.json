@@ -1,0 +1,17 @@
+{
+  "name": "advanced-backend",
+  "version": "1.0.0",
+  "description": "a backend with hitesh",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "backend",
+    "javascript",
+    "js",
+    "coffee"
+  ],
+  "author": "Abhishek Kumar (RADIUMz-Codes)",
+  "license": "ISC"
+}
