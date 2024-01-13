@@ -28,7 +28,7 @@ const userSchema = new Schema(
       type: String, //cloudnary url
       required: true,
     },
-    cover: {
+    coverImage: {
       type: String, //cloudnary url
     },
     watchHistory: [
@@ -41,7 +41,7 @@ const userSchema = new Schema(
       type: String,
       required: [true, "Password is required"],
     },
-    refreshTokens: {
+    refreshToken: {
       type: String,
     },
   },
@@ -52,7 +52,7 @@ userSchema.pre("save", async function (next) {
   // To prevent password from being changed any time other data is modified
   if (!this.isModified("password")) return next();
 
-  this.password = bcypt.hash(this.password, 10);
+  this.password = await bcypt.hash(this.password, 10);
   next();
 });
 
@@ -79,9 +79,9 @@ userSchema.methods.generateRefToken = async function () {
     {
       _id: this._id,
     },
-    process.env.ACCESS_TOKEN_SECRET,
+    process.env.REFRESH_TOKEN_SECRET,
     {
-      expiresIn: process.env.ACCESS_TOKEN_EXPIRY,
+      expiresIn: process.env.REFRESH_TOKEN_EXPIRY,
     }
   );
 };
