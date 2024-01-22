@@ -15,14 +15,17 @@ import { ApiResponse } from "../utils/ApiResponse.js";
  * 9. return res
  */
 const generateAccessAndRefreshTokens = async function (id) {
-  const user = await User.findById(id);
-  const accessTokens = await user.generateAccessToken();
-  const refreshToken = await user.generateRefToken();
-
-  user.refreshToken = refreshToken;
-  await user.save({ validateBeforeSave: false });
-
-  return { accessTokens, refreshToken };
+  try {
+    const user = await User.findById(id);
+    const accessToken = await user.generateAccessToken();
+    const refreshToken = await user.generateRefToken();
+  
+    user.refreshToken = refreshToken;
+    await user.save({ validateBeforeSave: false });  
+    return { accessToken, refreshToken };
+  } catch (error) {
+    throw new ApiError(500, "Something went wrong while generating referesh and access token")
+  }
 };
 
 const registerUser = asyncHandler(async (req, res) => {
@@ -100,7 +103,7 @@ const loginUser = asyncHandler(async (req, res) => {
   const { email, username, password } = req.body;
 
   // checked if any field is available
-  if (!username || !email) {
+  if (!username && !email) {
     throw new ApiError(400, "username or password is required");
   }
 
@@ -120,9 +123,10 @@ const loginUser = asyncHandler(async (req, res) => {
   const { accessToken, refreshToken } = await generateAccessAndRefreshTokens(
     user._id
   );
+  
 
   // Send Cookies
-  const loggedInUser = await User.findById(user_id).select(
+  const loggedInUser = await User.findById(user._id).select(
     "-password -refreshToken"
   );
   // for Security - Cookies cant be modified from frontend now
