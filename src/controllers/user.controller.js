@@ -3,6 +3,7 @@ import { ApiError } from "../utils/ApiError.js";
 import { User } from "../models/user.model.js";
 import { uploadOnCloudinary } from "../utils/cloudinary.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
+import jwt from "jsonwebtoken";
 /** Steps : register algo
  * 1. get user data from frontend or postman
  * 2. validation - (not empty)
@@ -14,17 +15,27 @@ import { ApiResponse } from "../utils/ApiResponse.js";
  * 8. check for user creation
  * 9. return res
  */
+
+// global declaration for cookies
+const options = {
+  httpOnly: true,
+  secure: true,
+};
+
 const generateAccessAndRefreshTokens = async function (id) {
   try {
     const user = await User.findById(id);
     const accessToken = await user.generateAccessToken();
     const refreshToken = await user.generateRefToken();
-  
+
     user.refreshToken = refreshToken;
-    await user.save({ validateBeforeSave: false });  
+    await user.save({ validateBeforeSave: false });
     return { accessToken, refreshToken };
   } catch (error) {
-    throw new ApiError(500, "Something went wrong while generating referesh and access token")
+    throw new ApiError(
+      500,
+      "Something went wrong while generating referesh and access token"
+    );
   }
 };
 
@@ -123,17 +134,13 @@ const loginUser = asyncHandler(async (req, res) => {
   const { accessToken, refreshToken } = await generateAccessAndRefreshTokens(
     user._id
   );
-  
 
   // Send Cookies
   const loggedInUser = await User.findById(user._id).select(
     "-password -refreshToken"
   );
   // for Security - Cookies cant be modified from frontend now
-  const options = {
-    httpOnly: true,
-    secure: true,
-  };
+
   return res
     .status(200)
     .cookie("accessToken", accessToken, options)
@@ -152,26 +159,65 @@ const loginUser = asyncHandler(async (req, res) => {
 });
 
 const logutUser = asyncHandler(async (req, res) => {
-  await User.findByIdAndUpdate(
+  const test = await User.findByIdAndUpdate(
     req.user._id,
     {
-      $set: {
-        refreshToken: undefined,
+      $unset: {
+        refreshToken: 1, //removes the field from the document
       },
     },
     {
       new: true,
     }
   );
-  const options = {
-    httpOnly: true,
-    secure: true,
-  };
 
   return res
     .status(200)
+    .clearCookie("refreshToken", options)
     .clearCookie("accessToken", options)
-    .clearCookie("refreshToken".options)
     .json(new ApiResponse(200, {}, "User Logged out"));
 });
-export { registerUser, loginUser, logutUser };
+
+const refreshAccessToken = asyncHandler(async (req, res) => {
+  const incomingRefreshToken =
+    req.cookies?.refreshToken || req.body.refreshToken;
+
+  if (!incomingRefreshToken) {
+    throw new ApiError(401, "unauthoriqed request");
+  }
+
+  try {
+    const decodedToken = jwt.verify(
+      incomingRefreshToken,
+      process.env.ACCESS_TOKEN_SECRET
+    );
+    const user = User.findById(decodedToken?._id);
+
+    if (!user) {
+      throw new ApiError(401, "Invalid Refresh Token");
+    }
+    if (user.refreshToken !== incomingRefreshToken) {
+      throw new ApiError(401, "Refresh token expired or used");
+    }
+
+    const { accessToken, newRefreshToken } =
+      await generateAccessAndRefreshTokens(user._id);
+    return res
+      .status(200)
+      .cookie("accessToken", accessToken, options)
+      .cookie("refreshToken", newRefreshToken, options)
+      .json(
+        new ApiResponse(
+          200,
+          {
+            accessToken,
+            newRefreshToken,
+          },
+          "Tokens are refreshed"
+        )
+      );
+  } catch (error) {
+    throw new ApiError(401, error?.message || "Invalid refresh token");
+  }
+});
+export { registerUser, loginUser, logutUser, refreshAccessToken };
